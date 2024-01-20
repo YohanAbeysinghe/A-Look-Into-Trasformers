@@ -44,6 +44,7 @@ class SelfAttention(nn.Module):
         out = self.fc_out()
         return out
 
+
 class TrasformerBlock(nn.Module):
     def __init__(self, embed_size, heads, dropout, forward_expansion):
         super(TrasformerBlock, self).__init__()
@@ -54,7 +55,7 @@ class TrasformerBlock(nn.Module):
         self.feed_forward = nn.Sequential(
             nn.Linear(embed_size, forward_expansion*embed_size), 
             nn.Relu(),
-            nn.Linear(forward_expansion,*embed_size, embed_size)
+            nn.Linear(forward_expansion*embed_size, embed_size)
         )
 
         self.droupout = nn.Dropout(dropout)
@@ -62,12 +63,144 @@ class TrasformerBlock(nn.Module):
 
     def forward(self, value, key, query, mask):
         attention = self.attention(value, key, query, mask)
+
         x = self.droupout(self.norm1(attention + query))
         forward = self.feed_forward(x)
         out = self.dropout(self.norm2(forward + x))
         return out
         
 
+class Encoder(nn.Module):
+    def __init__(
+            self, 
+            src_vocab_size,
+            embed_size,
+            num_layers,
+            heads, 
+            device, forward_expansion,
+            dropout,
+            max_length,
+    ):
+        super(Encoder, self).__init__()
+        self.embed_size = embed_size
+        self.device = device
+        self.word_embedding = nn.Embedding(src_vocab_size, embed_size)
+        self.position_embedding = nn.Embedding(max_length, embed_size)
+
+        self.layers == nn.ModuleList(
+            [
+                TrasformerBlock(
+                    embed_size,
+                    heads,
+                    dropout=dropout,
+                    forward_expansion=forward_expansion,
+                )
+            ]
+        )
+
+        self.droupout == nn.Dropout(dropout)
+
+
+    def forward(self, x, mask):
+        N, seq_length = x.shape
+        positions = torch.arange(0, seq_length).expand(N, seq_length).to(self.device)
+
+        out = self.dropout(self.word_embedding(x) + self.position_embedding(positions))
+
+        for layer in self.layers:
+            out = layer(out, out, out, mask)
+
+        return out
+
+
+class DecoderBlock(nn.Module):
+    def __init__(
+            self,
+            embed_size,
+            heads,
+            device,
+            forward_expansion,
+            dropout
+    ):
+        
+        super(DecoderBlock, self).__init__
+        self.attention = SelfAttention(embed_size, heads)
+        self.norm = nn.LayerNorm(embed_size)
+        self.trasformer_block = TrasformerBlock(embed_size, heads, dropout, forward_expansion)
+        self.dropout = nn.Dropout(dropout)
+
+    
+    def forward(self, x, value, key, src_mask, trg_mask):
+        attention = self.attention(x, x, x, trg_mask)
+        query = self.dropout(self.norm(attention + x))
+        out = self.trasformer_block(value, key, query, src_mask)
+        return out
+    
+
+class Decoder(nn.Module):
+    def __init__(self,
+                 trg_vocab_size,
+                 embed_size,
+                 num_layers,
+                 heads,
+                 forward_expansion,
+                 dropout,
+                 device,
+                 max_length,
+    ):
+        super(Decoder, self).__init__
+        self.device = device
+        self.word_embedding = nn.Embedding(trg_vocab_size, embed_size)
+        self.position_embedding = nn.Embedding(max_length, embed_size)
+
+        self.layers = nn.ModuleList(
+            [DecoderBlock(embed_size, heads, forward_expansion, dropout, device) for _ in range(num_layers)]
+        )
+
+        self.fc_out = nn.Linear(embed_size, trg_vocab_size)
+        self.dropout = nn.Dropout(dropout)
+
+
+    def forward(self, x, enc_out, src_mask, trg_mask):
+        N, seq_length = x.shape
+        positions = torch.arange(0, seq_length).expand(N, seq_length).to(self.device)
+        x = self.dropout((self.word_embedding(x) + self.position_embedding(positions)))
+
+        for layer in self.layers:
+            x = layer(x, enc_out, enc_out, trg_mask)
+
+        out = self.fc_out(x)
 
 
 
+class Trasformer(nn.Module):
+    def __init__(self,
+                 src_vocab_size,
+                 trg_vocab_size,
+                 src_pad_idx,
+                 trg_pad_idx,
+                 embed_size=256,
+                 num_layers=6,
+                 forward_expansion=4,
+                 heads=8,
+                 dropout=0,
+                 device='cuda',
+                 max_length=100,
+    ):
+        super(Trasformer, self).__init__()
+
+        self.encoder = Encoder(
+            trg_pad_idx,
+            embed_size,
+            num_layers,
+            heads,
+            device,
+            forward_expansion,
+            dropout,
+            max_length,
+        ):
+
+        
+        
+        
+    
